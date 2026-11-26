@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Postman Agent</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --orange:   #FF6C37;
+  --orange-d: #e85a26;
+  --bg:       #0d0d0d;
+  --surf:     #161616;
+  --surf2:    #1e1e1e;
+  --surf3:    #252525;
+  --border:   #2a2a2a;
+  --border2:  #333;
+  --text:     #e4e4e4;
+  --muted:    #777;
+  --muted2:   #555;
+  --green:    #3ddc84;
+  --yellow:   #f5c542;
+  --red:      #ff5f5f;
+  --blue:     #5ba4ff;
+  --purple:   #a78bfa;
+  --r:        10px;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top Bar ─────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 52px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 9px; }
+.logo-icon {
+  width: 30px; height: 30px;
+  background: var(--orange);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.logo-name {
+  font-size: 16px; font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.logo-name span { color: var(--orange); }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.key-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.key-pill:hover { border-color: var(--border2); color: var(--text); }
+.key-pill.set { border-color: rgba(61,220,132,0.3); color: var(--green); }
+.key-pill .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--muted2);
+}
+.key-pill.set .dot { background: var(--green); }
+button.key-pill {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ── Main Layout ─────────────────────────────────────────── */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left Panel ──────────────────────────────────────────── */
+.left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 20px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+/* ── Form ─────────────────────────────────────────────────── */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--muted); margin-bottom: 6px;
+}
+.field input, .field textarea {
+  width: 100%;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 10px 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.field input:focus, .field textarea:focus { border-color: var(--orange); }
+.field textarea { resize: vertical; min-height: 60px; }
+.hint { font-size: 11px; color: var(--muted2); margin-top: 5px; }
+.field-error {
+  display: none;
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--red);
+}
+.field-error.on { display: block; }
+
+.build-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--orange);
+  border: none; border-radius: 8px;
+  color: #fff; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background 0.15s;
+  margin-bottom: 18px;
+}
+.build-controls {
+  display: flex;
+  gap: 8px;
+  margin: -8px 0 12px;
+}
+.state-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surf2);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.state-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.build-btn:hover:not(:disabled) { background: var(--orange-d); }
+.build-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid rgba(255,255,255,0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: none;
+  animation: spin 0.65s linear infinite;
+}
+.build-btn.loading .spinner { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Progress ─────────────────────────────────────────────── */
+.progress {
+  display: none;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.progress.on { display: block; }
+.progress-top {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 10px;
+}
+.pdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--orange); flex-shrink: 0;
+  animation: pulse 1s ease-in-out infinite;
+}
+.pdot.ok { background: var(--green); animation: none; }
+.pdot.err { background: var(--red); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+.pstatus { font-size: 13px; color: var(--muted); }
+.runtime {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--muted2);
+}
+.runtime b { color: var(--text); font-weight: 600; }
+
+.logbox {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  font-family: 'SF Mono','Fira Code',monospace;
+  color: var(--muted);
+  max-height: 120px; overflow-y: auto;
+  line-height: 1.75;
+}
+.log-ok   { color: var(--green); }
+.log-warn { color: var(--yellow); }
+.log-err  { color: var(--red); }
+.log-info { color: var(--blue); }
+
+/* ── Result ───────────────────────────────────────────────── */
+.result {
+  display: none;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.result.on { display: block; }
+
+.result-head {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.result-name { font-weight: 600; font-size: 14px; }
+.badges { display: flex; gap: 7px; flex-wrap: wrap; }
+.badge {
+  padding: 2px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 500;
+}
+.b-orange { background: rgba(255,108,55,.15); color: var(--orange); }
+.b-blue   { background: rgba(91,164,255,.12); color: var(--blue); }
+.b-green  { background: rgba(61,220,132,.12); color: var(--green); }
+
+.result-actions {
+  padding: 12px 18px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.abtn {
+  padding: 7px 14px; border-radius: 6px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  text-decoration: none; border: none;
+  transition: opacity 0.15s;
+}
+.abtn:hover { opacity: 0.8; }
+.abtn-primary   { background: var(--orange); color: #fff; }
+.abtn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+
+.postman-banner {
+  display: none; align-items: center; gap: 8px;
+  margin: 0 18px 12px;
+  padding: 10px 14px;
+  background: rgba(61,220,132,.07);
+  border: 1px solid rgba(61,220,132,.2);
+  border-radius: 7px;
+  font-size: 12px; color: var(--green);
+}
+.postman-banner.on { display: flex; }
+.postman-banner a { color: var(--green); font-weight: 600; }
+
+.tree-wrap { padding: 0 18px 16px; }
+.section-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--muted2); margin-bottom: 8px;
+}
+.tree {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  font-family: 'SF Mono','Fira Code',monospace;
+  max-height: 200px; overflow-y: auto;
+  line-height: 1.85;
+}
+.tf { color: var(--yellow); }
+.tr { padding-left: 16px; }
+.GET    { color: var(--green); }
+.POST   { color: var(--orange); }
+.PUT    { color: var(--yellow); }
+.PATCH  { color: var(--purple); }
+.DELETE { color: var(--red); }
+.meth { font-size: 10px; font-weight: 700; margin-right: 5px; }
+
+.vars-wrap {
+  padding: 0 18px 16px;
+  border-top: 1px solid var(--border);
+}
+.vars-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.var-chip {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-family: 'SF Mono','Fira Code',monospace;
+  color: var(--blue);
+}
+
+/* ── Right Panel (Chat) ───────────────────────────────────── */
+.right {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-head {
+  display: flex; align-items: center;
+  padding: 0 16px;
+  height: 52px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  flex-shrink: 0;
+}
+.chat-head-icon { font-size: 16px; }
+.chat-head-title { font-size: 14px; font-weight: 600; }
+.chat-head-sub { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chat-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  text-align: center;
+  color: var(--muted2);
+}
+.chat-placeholder-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+.chat-placeholder-text { font-size: 13px; line-height: 1.6; }
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 92%;
+}
+.msg.user { align-self: flex-end; align-items: flex-end; }
+.msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+.msg-bubble {
+  padding: 9px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user .msg-bubble {
+  background: var(--orange);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.msg.assistant .msg-bubble {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 3px;
+}
+.msg-bubble code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'SF Mono','Fira Code',monospace;
+  font-size: 11.5px;
+}
+.msg-bubble pre {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin-top: 6px;
+}
+.msg-bubble pre code { background: none; padding: 0; }
+
+.collection-update-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(61,220,132,.1);
+  border: 1px solid rgba(61,220,132,.25);
+  border-radius: 5px;
+  padding: 4px 9px;
+  font-size: 11px; color: var(--green);
+  cursor: pointer; margin-top: 6px;
+}
+.collection-update-chip:hover { background: rgba(61,220,132,.18); }
+
+.msg-typing .msg-bubble::after {
+  content: '▋';
+  animation: blink 1s step-start infinite;
+  opacity: 0.7;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── Chat Input ───────────────────────────────────────────── */
+.chat-input-area {
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.chat-input-row {
+  display: flex; gap: 8px; align-items: flex-end;
+}
+.chat-input {
+  flex: 1;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 9px 12px;
+  resize: none;
+  font-family: inherit;
+  outline: none;
+  max-height: 120px;
+  transition: border-color 0.15s;
+  line-height: 1.5;
+}
+.chat-input:focus { border-color: var(--orange); }
+.chat-input:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn {
+  width: 34px; height: 34px; flex-shrink: 0;
+  background: var(--orange);
+  border: none; border-radius: 7px;
+  color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  transition: background 0.15s;
+}
+.send-btn:hover:not(:disabled) { background: var(--orange-d); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chat-hint { font-size: 10.5px; color: var(--muted2); margin-top: 6px; text-align: center; }
+
+/* ── Settings Modal ───────────────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.overlay.hidden { display: none; }
+
+.modal {
+  background: var(--surf);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  width: 100%; max-width: 460px;
+  padding: 28px;
+  position: relative;
+}
+.modal h2 {
+  font-size: 18px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.modal .modal-sub {
+  font-size: 13px; color: var(--muted);
+  margin-bottom: 22px; line-height: 1.5;
+}
+
+.modal .field { margin-bottom: 16px; }
+.modal .field input {
+  padding-right: 80px;
+}
+.input-wrap { position: relative; }
+.input-wrap .reveal-btn {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none;
+  color: var(--muted); font-size: 11px; cursor: pointer;
+  padding: 2px 4px;
+}
+.input-wrap .reveal-btn:hover { color: var(--text); }
+.val-status { font-size: 11px; margin-top: 5px; height: 14px; }
+.val-status.ok  { color: var(--green); }
+.val-status.err { color: var(--red); }
+
+.security-note {
+  background: rgba(91,164,255,.07);
+  border: 1px solid rgba(91,164,255,.2);
+  border-radius: 8px;
+  padding: 11px 13px;
+  font-size: 12px; color: var(--blue);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.mbtn {
+  padding: 9px 20px;
+  border-radius: 7px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; border: none;
+  transition: opacity 0.15s;
+}
+.mbtn:hover { opacity: 0.85; }
+.mbtn-primary { background: var(--orange); color: #fff; }
+.mbtn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+.close-btn {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none;
+  color: var(--muted); font-size: 18px;
+  cursor: pointer; line-height: 1;
+}
+.close-btn:hover { color: var(--text); }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 700px) {
+  body { overflow: auto; }
+  .layout { flex-direction: column; overflow: visible; }
+  .left { overflow: visible; border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+  .right { width: 100%; height: 500px; flex-shrink: 0; }
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="overlay hidden" id="overlay" aria-hidden="true">
+  <div class="modal" id="modalPanel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button type="button" class="close-btn" id="modalCloseBtn" aria-label="Close">×</button>
+    <h2 id="modalTitle">API keys</h2>
+    <p class="modal-sub">
+      Keys stay in this browser (encrypted in localStorage). They are sent to your local server only.<br/>
+      Get keys: <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--blue)">OpenAI</a>,
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue)">Anthropic</a>,
+      <a href="https://console.groq.com/keys" target="_blank" style="color:var(--blue)">Groq</a>,
+      <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--blue)">OpenRouter</a>,
+      <a href="https://go.postman.co/settings/me/api-keys" target="_blank" style="color:var(--blue)">Postman</a>.
+    </p>
+
+    <div class="field">
+      <label>AI key <span style="color:var(--red)">*</span></label>
+      <div class="input-wrap">
+        <input type="password" id="aiKeyInput" placeholder="sk-…" spellcheck="false" autocomplete="off" />
+        <button type="button" class="reveal-btn" id="revealAiBtn">show</button>
+      </div>
+      <div class="val-status" id="aiKeyStatus"></div>
+    </div>
+
+    <div class="field">
+      <label>Postman <span style="color:var(--muted)">(optional)</span></label>
+      <div class="input-wrap">
+        <input type="password" id="postmanKeyInput" placeholder="PMAK-…" spellcheck="false" autocomplete="off" />
+        <button type="button" class="reveal-btn" id="revealPostmanBtn">show</button>
+      </div>
+      <div class="val-status" id="postmanStatus"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="mbtn mbtn-ghost" id="clearKeysBtn">Clear</button>
+      <button type="button" class="mbtn mbtn-ghost" id="modalCancelBtn">Cancel</button>
+      <button type="button" class="mbtn mbtn-primary" id="saveKeysBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">📮</div>
+    <div class="logo-name">Postman <span>Agent</span></div>
+  </div>
+  <div class="topbar-right">
+    <button type="button" class="key-pill" id="aiKeyPill">
+      <div class="dot"></div>
+      <span id="aiKeyPillLabel">AI</span>
+    </button>
+    <button type="button" class="key-pill" id="postmanPill">
+      <div class="dot"></div>
+      <span id="postmanPillLabel">Postman</span>
+    </button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="layout">
+
+  <!-- Left: Build Panel -->
+  <div class="left">
+    <div class="field">
+      <label>Source (URL or text)</label>
+      <input type="text" id="sourceInput" placeholder="Docs URL, OpenAPI link, GitHub repo, or plain API description…" spellcheck="false" autocomplete="off" />
+      <div class="hint">Supported: API docs pages, OpenAPI/Swagger JSON or YAML URLs, GitHub repo links, raw spec files, live app links, or plain-text API descriptions.</div>
+    </div>
+
+    <div class="field">
+      <label>Notes <span style="color:var(--muted);font-weight:400;text-transform:none">(optional)</span></label>
+      <input type="text" id="notesInput" placeholder="e.g. auth routes only, or paste 'Copy as cURL' / HAR JSON text" />
+    </div>
+
+    <button type="button" class="build-btn" id="buildBtn">
+      <div class="spinner" id="spinner"></div>
+      <span id="btnLabel">Build</span>
+    </button>
+    <div class="build-controls">
+      <button type="button" class="state-btn" id="stopBtn" disabled>Stop</button>
+      <button type="button" class="state-btn" id="resumeBtn" disabled>Resume</button>
+      <button type="button" class="state-btn" id="retryBtn" disabled>Retry</button>
+    </div>
+    <div class="field-error" id="buildError"></div>
+
+    <!-- Progress -->
+    <div class="progress" id="progress">
+      <div class="progress-top">
+        <div class="pdot" id="pdot"></div>
+        <span class="pstatus" id="pstatus">Starting...</span>
+        <span class="runtime">
+          <span>Time <b id="timeMetric">0.0s</b></span>
+          <span>Tokens <b id="tokenMetric">0</b></span>
+          <span>Cost <b id="costMetric">~$0.000000</b></span>
+        </span>
+      </div>
+      <div class="logbox" id="logbox"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result" id="result">
+      <div class="result-head">
+        <div class="result-name" id="resultName">—</div>
+        <div class="badges">
+          <span class="badge b-orange" id="epBadge">0 endpoints</span>
+          <span class="badge b-blue" id="folBadge">0 folders</span>
+          <span class="badge b-green">v2.1</span>
+        </div>
+      </div>
+
+      <div class="postman-banner" id="postmanBanner">
+        ✅ Pushed to Postman — <a href="#" id="postmanLink" target="_blank">Open in Postman →</a>
+      </div>
+
+      <div class="result-actions">
+        <button type="button" class="abtn abtn-primary" id="downloadJsonBtn">Download</button>
+        <button type="button" class="abtn abtn-secondary" id="copyJsonBtn">Copy JSON</button>
+        <button type="button" class="abtn abtn-secondary" id="resetBtn">New</button>
+      </div>
+
+      <div class="tree-wrap">
+        <div class="section-label">Structure</div>
+        <div class="tree" id="treeView"></div>
+      </div>
+
+      <div class="vars-wrap" id="varsWrap" style="display:none">
+        <div class="section-label" style="margin-top:12px">Variables</div>
+        <div class="vars-grid" id="varsGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Chat Panel -->
+  <div class="right">
+    <div class="chat-head">
+      <span class="chat-head-icon">💬</span>
+      <span class="chat-head-title">Ask anything</span>
+      <span class="chat-head-sub" id="chatSub">—</span>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-placeholder" id="chatPlaceholder">
+        <div class="chat-placeholder-icon">🤖</div>
+        <div class="chat-placeholder-text">Build a collection first, then chat here.</div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="chat-input-row">
+        <textarea
+          class="chat-input"
+          id="chatInput"
+          placeholder="Message…"
+          rows="1"
+          disabled
+        ></textarea>
+        <button type="button" class="send-btn" id="sendBtn" disabled aria-label="Send">↑</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const AI_API_KEY_HEADER = 'x-ai-api-key';
+const POSTMAN_HEADER = 'x-postman-api-key';
+/** localStorage — encrypted API keys (never read from server .env) */
+const LS_AI_KEY = 'pa_ak';
+const LS_POSTMAN = 'pa_pk';
+const LS_BUILD_HISTORY = 'pa_build_history_v1';
+
+function refreshPillLabels() {
+  const akLabel = document.getElementById('aiKeyPillLabel');
+  const pkLabel = document.getElementById('postmanPillLabel');
+  if (akLabel) akLabel.textContent = 'AI';
+  if (pkLabel) pkLabel.textContent = 'Postman';
+}
+
+function applyServerConfigUi() {
+  refreshPillLabels();
+}
+
+// ── Crypto: AES-256-GCM with per-browser random wrap key (Web Crypto API) ─────
+const LS_WRAP = 'pa_device_wrap_v1';
+
+/** @param {Uint8Array} bytes */
+function bytesToB64(bytes) {
+  let s = '';
+  const chunk = 8192;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(s);
+}
+
+/** @param {string} b64 */
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function getWrapKeyCrypto() {
+  let b64 = localStorage.getItem(LS_WRAP);
+  if (!b64) {
+    const raw = crypto.getRandomValues(new Uint8Array(32));
+    b64 = bytesToB64(raw);
+    localStorage.setItem(LS_WRAP, b64);
+  }
+  const raw = b64ToBytes(b64);
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+// Legacy PBKDF2-based storage (migrate to v2 on read)
+const LEGACY_CRYPTO_PASS = 'postman-agent-local-v1-aes';
+const LEGACY_CRYPTO_SALT = new TextEncoder().encode('postman-agent-salt-2024');
+
+async function getLegacyCryptoKey() {
+  const raw = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(LEGACY_CRYPTO_PASS),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: LEGACY_CRYPTO_SALT, iterations: 100000, hash: 'SHA-256' },
+    raw,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptSecret(plain) {
+  const key = await getWrapKeyCrypto();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
+  const buf = new Uint8Array(iv.byteLength + ct.byteLength);
+  buf.set(iv);
+  buf.set(new Uint8Array(ct), iv.byteLength);
+  return 'v2:' + bytesToB64(buf);
+}
+
+async function decryptSecret(stored) {
+  if (stored.startsWith('v2:')) {
+    const key = await getWrapKeyCrypto();
+    const buf = b64ToBytes(stored.slice(3));
+    const iv = buf.slice(0, 12);
+    const ct = buf.slice(12);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    return new TextDecoder().decode(pt);
+  }
+  const key = await getLegacyCryptoKey();
+  const buf = b64ToBytes(stored);
+  const iv = buf.slice(0, 12);
+  const ct = buf.slice(12);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
+// ── Key storage ───────────────────────────────────────────────────────────────
+
+async function saveKeys() {
+  const ak = document.getElementById('aiKeyInput').value.trim();
+  const pk = document.getElementById('postmanKeyInput').value.trim();
+  const hadStoredAi = !!localStorage.getItem(LS_AI_KEY);
+
+  if (!ak && !hadStoredAi) {
+    showValStatus('aiKeyStatus', false, 'AI API key is required');
+    return;
+  }
+
+  if (ak) {
+    showValStatus('aiKeyStatus', null, 'Verifying...');
+    const r = await fetch('/api/validate-ai-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [AI_API_KEY_HEADER]: ak },
+    });
+    let d;
+    try {
+      d = await r.json();
+    } catch {
+      showValStatus('aiKeyStatus', false, 'Could not verify key');
+      return;
+    }
+    if (!r.ok) {
+      showValStatus('aiKeyStatus', false, d.error || `HTTP ${r.status}`);
+      return;
+    }
+    if (!d.valid) {
+      showValStatus('aiKeyStatus', false, d.reason || 'Invalid key');
+      return;
+    }
+    showValStatus('aiKeyStatus', true, 'Valid ✓');
+    localStorage.setItem(LS_AI_KEY, await encryptSecret(ak));
+  } else {
+    showValStatus('aiKeyStatus', true, 'Using saved AI key ✓');
+  }
+
+  if (pk) {
+    showValStatus('postmanStatus', null, 'Verifying Postman...');
+    const r2 = await fetch('/api/validate-postman-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [POSTMAN_HEADER]: pk },
+    });
+    let d2;
+    try {
+      d2 = await r2.json();
+    } catch {
+      showValStatus('postmanStatus', false, 'Could not verify Postman key');
+      return;
+    }
+    if (!r2.ok) {
+      showValStatus('postmanStatus', false, d2.error || `HTTP ${r2.status}`);
+      return;
+    }
+    if (!d2.valid) {
+      showValStatus('postmanStatus', false, d2.reason || 'Invalid Postman key');
+      return;
+    }
+    showValStatus('postmanStatus', true, d2.user ? `Valid ✓ (${d2.user})` : 'Valid ✓');
+    localStorage.setItem(LS_POSTMAN, await encryptSecret(pk));
+  } else {
+    localStorage.removeItem(LS_POSTMAN);
+    showValStatus('postmanStatus', null, '');
+  }
+
+  updatePills();
+  setTimeout(closeModal, 600);
+}
+
+async function loadKeys() {
+  let ak = '';
+  let pk = '';
+  try {
+    const enc_ak = localStorage.getItem(LS_AI_KEY);
+    const enc_pk = localStorage.getItem(LS_POSTMAN);
+    if (enc_ak) {
+      ak = await decryptSecret(enc_ak);
+      if (!enc_ak.startsWith('v2:')) {
+        localStorage.setItem(LS_AI_KEY, await encryptSecret(ak));
+      }
+    }
+    if (enc_pk) {
+      pk = await decryptSecret(enc_pk);
+      if (!enc_pk.startsWith('v2:')) {
+        localStorage.setItem(LS_POSTMAN, await encryptSecret(pk));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ak, pk };
+}
+
+async function getKeys() {
+  return loadKeys();
+}
+
+function clearKeys() {
+  localStorage.removeItem(LS_AI_KEY);
+  localStorage.removeItem(LS_POSTMAN);
+  document.getElementById('aiKeyInput').value = '';
+  document.getElementById('postmanKeyInput').value = '';
+  updatePills();
+  showValStatus('aiKeyStatus', null, 'Cleared');
+}
+
+async function updatePills() {
+  const enc_ak = localStorage.getItem(LS_AI_KEY);
+  const enc_pk = localStorage.getItem(LS_POSTMAN);
+  document.getElementById('aiKeyPill').classList.toggle('set', Boolean(enc_ak));
+  document.getElementById('postmanPill').classList.toggle('set', Boolean(enc_pk));
+  applyServerConfigUi();
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  ov.setAttribute('aria-hidden', 'false');
+  loadKeys().then(({ ak, pk }) => {
+    if (ak) document.getElementById('aiKeyInput').value = ak;
+    if (pk) document.getElementById('postmanKeyInput').value = pk;
+  });
+}
+
+function closeModal() {
+  const ov = document.getElementById('overlay');
+  ov.classList.add('hidden');
+  ov.setAttribute('aria-hidden', 'true');
+  showValStatus('aiKeyStatus', null, '');
+  showValStatus('postmanStatus', null, '');
+}
+
+function toggleReveal(id, btn) {
+  const el = document.getElementById(id);
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'hide' : 'show';
+}
+
+function showValStatus(id, ok, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'val-status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+}
+
+// ── Build ─────────────────────────────────────────────────────────────────────
+let collectionData = null;
+let chatHistory    = [];
+let isBuilding     = false;
+let isChatting     = false;
+let buildStartedAt = 0;
+let buildTimer     = null;
+let buildAbortController = null;
+let lastBuildInput = null;
+let buildPaused = false;
+let lastBuildFailed = false;
+
+function resetMetrics() {
+  document.getElementById('timeMetric').textContent = '0.0s';
+  document.getElementById('tokenMetric').textContent = '0';
+  document.getElementById('costMetric').textContent = '~$0.000000';
+}
+
+function startMetricsTimer() {
+  buildStartedAt = Date.now();
+  if (buildTimer) clearInterval(buildTimer);
+  buildTimer = setInterval(() => {
+    const sec = (Date.now() - buildStartedAt) / 1000;
+    document.getElementById('timeMetric').textContent = `${sec.toFixed(1)}s`;
+  }, 100);
+}
+
+function stopMetricsTimer() {
+  if (buildTimer) clearInterval(buildTimer);
+  buildTimer = null;
+}
+
+function showBuildError(message) {
+  const el = document.getElementById('buildError');
+  if (!message) {
+    el.textContent = '';
+    el.classList.remove('on');
+    return;
+  }
+  el.textContent = message;
+  el.classList.add('on');
+}
+
+function readBuildHistory() {
+  try {
+    const raw = localStorage.getItem(LS_BUILD_HISTORY);
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.slice(-6) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeBuildHistory(entries) {
+  localStorage.setItem(LS_BUILD_HISTORY, JSON.stringify((entries || []).slice(-6)));
+}
+
+function saveBuildHistoryEntry(entry) {
+  const all = readBuildHistory();
+  all.push(entry);
+  writeBuildHistory(all);
+}
+
+function updateBuildStateButtons() {
+  const stopBtn = document.getElementById('stopBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  stopBtn.disabled = !isBuilding;
+  resumeBtn.disabled = !(buildPaused && !isBuilding && lastBuildInput);
+  retryBtn.disabled = !(lastBuildInput && !isBuilding);
+  retryBtn.textContent = lastBuildFailed ? 'Retry' : 'Rebuild';
+}
+
+async function build(mode = 'fresh') {
+  if (isBuilding) return;
+  const source = (mode === 'fresh' ? document.getElementById('sourceInput').value : lastBuildInput?.source || '').trim();
+  const notes  = (mode === 'fresh' ? document.getElementById('notesInput').value : lastBuildInput?.notes || '').trim();
+
+  if (!source) {
+    flash(document.getElementById('sourceInput'));
+    return;
+  }
+
+  const { ak, pk } = await getKeys();
+  if (!ak) {
+    openModal();
+    return;
+  }
+
+  isBuilding = true;
+  buildPaused = false;
+  lastBuildFailed = false;
+  buildAbortController = new AbortController();
+  lastBuildInput = { source, notes };
+  if (mode === 'fresh') {
+    collectionData = null;
+    chatHistory = [];
+  }
+  showBuildError('');
+  setBuilding(true);
+  updateBuildStateButtons();
+  showProgress(true);
+  showResult(false);
+  clearLog();
+  resetMetrics();
+  startMetricsTimer();
+  document.getElementById('postmanBanner').classList.remove('on');
+
+  try {
+    const headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream' };
+    if (ak) headers[AI_API_KEY_HEADER] = ak;
+    if (pk) headers[POSTMAN_HEADER] = pk;
+    const res = await fetch('/api/build', {
+      method: 'POST',
+      headers,
+      signal: buildAbortController.signal,
+      body: JSON.stringify({ source, notes, buildHistory: readBuildHistory() }),
+    });
+
+    await consumeSSE(res, handleBuildEvent);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      addLog('Build stopped by user', 'warn');
+      setStatus('Stopped');
+      buildPaused = true;
+      return;
+    }
+    const msg = 'Network error: ' + err.message;
+    addLog(msg, 'err');
+    showBuildError(msg);
+    dotState('err');
+    setStatus('Error');
+    lastBuildFailed = true;
+  } finally {
+    stopMetricsTimer();
+    isBuilding = false;
+    setBuilding(false);
+    buildAbortController = null;
+    updateBuildStateButtons();
+  }
+}
+
+function stopBuild() {
+  if (!isBuilding || !buildAbortController) return;
+  buildAbortController.abort();
+}
+
+function resumeBuild() {
+  if (isBuilding || !buildPaused || !lastBuildInput) return;
+  build('resume');
+}
+
+function retryBuild() {
+  if (isBuilding || !lastBuildInput) return;
+  build('retry');
+}
+
+function handleBuildEvent(evt) {
+  switch (evt.type) {
+    case 'status':  setStatus(evt.message); addLog(evt.message, 'info'); break;
+    case 'debug':   addLog('debug: ' + evt.message, 'info'); break;
+    case 'warning': addLog('⚠ ' + evt.message, 'warn'); break;
+    case 'metrics':
+      if (Number.isFinite(evt.elapsedMs)) {
+        document.getElementById('timeMetric').textContent = `${(evt.elapsedMs / 1000).toFixed(2)}s`;
+      }
+      if (evt.usage?.totalTokens != null) {
+        document.getElementById('tokenMetric').textContent = String(evt.usage.totalTokens);
+      }
+      if (evt.estimatedCostUsd != null) {
+        document.getElementById('costMetric').textContent = `~$${Number(evt.estimatedCostUsd).toFixed(6)}`;
+      } else {
+        document.getElementById('costMetric').textContent = '~$n/a';
+      }
+      if (evt.model) {
+        addLog(`Model ${evt.model} · tokens ${evt.usage?.totalTokens || 0}`, 'info');
+      }
+      if (evt.runFolderName) {
+        addLog(`Run folder: ${evt.runFolderName}`, 'info');
+      }
+      break;
+    case 'chunk':   /* live text — not shown in log to avoid noise */ break;
+    case 'error':
+      addLog('✗ ' + evt.message, 'err');
+      showBuildError(evt.message || 'Build failed');
+      dotState('err');
+      setStatus('Failed');
+      lastBuildFailed = true;
+      break;
+    case 'postman_success':
+      addLog('✅ Pushed to Postman!', 'ok');
+      if (evt.url) {
+        document.getElementById('postmanLink').href = evt.url;
+        document.getElementById('postmanBanner').classList.add('on');
+      }
+      break;
+    case 'done':
+      showBuildError('');
+      dotState('ok');
+      setStatus('Done!');
+      addLog(`✓ ${evt.name} · ${evt.endpointCount} endpoints`, 'ok');
+      if (evt.collection) {
+        collectionData = evt.collection;
+        renderResult(evt.collection, evt.name, evt.endpointCount);
+        showResult(true);
+        activateChat(evt.name);
+        const folders = (evt.collection.item || []).filter(i => i.item).length;
+        saveBuildHistoryEntry({
+          ts: Date.now(),
+          source: lastBuildInput?.source || '',
+          notes: lastBuildInput?.notes || '',
+          name: evt.name || 'API Collection',
+          endpointCount: Number(evt.endpointCount) || 0,
+          folderCount: folders,
+          summary: `Built "${evt.name || 'API Collection'}" with ${Number(evt.endpointCount) || 0} endpoints and ${folders} folders.`,
+        });
+      }
+      break;
+  }
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+function activateChat(name) {
+  document.getElementById('chatSub').textContent = name;
+  document.getElementById('chatInput').disabled = false;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('chatInput').placeholder = 'Add endpoints, explain auth, modify requests...';
+  hidePlaceholder();
+  appendMsg('assistant', `**${name}** is ready. Ask to edit the collection or explain endpoints.`);
+}
+
+function hidePlaceholder() {
+  const ph = document.getElementById('chatPlaceholder');
+  if (ph) ph.style.display = 'none';
+}
+
+async function sendChat() {
+  if (isChatting || !collectionData) return;
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  const { ak } = await getKeys();
+  if (!ak) {
+    openModal();
+    return;
+  }
+
+  isChatting = true;
+  input.value = '';
+  autoResize(input);
+  document.getElementById('sendBtn').disabled = true;
+
+  appendMsg('user', msg);
+  const typingEl = appendTyping();
+
+  try {
+    const headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream' };
+    if (ak) headers[AI_API_KEY_HEADER] = ak;
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        history: chatHistory,
+        collection: collectionData,
+        message: msg,
+      }),
+    });
+
+    let fullText = '';
+    let updatedCollection = null;
+
+    await consumeSSE(res, evt => {
+      if (evt.type === 'chunk') {
+        fullText += evt.content;
+        updateTyping(typingEl, fullText);
+      } else if (evt.type === 'collection_update') {
+        updatedCollection = evt.collection;
+      } else if (evt.type === 'error') {
+        updateTyping(typingEl, '⚠ ' + evt.message);
+      } else if (evt.type === 'done') {
+        finalizeTyping(typingEl, evt.text || fullText, updatedCollection);
+        chatHistory.push({ role: 'user', content: msg });
+        chatHistory.push({ role: 'assistant', content: evt.text || fullText });
+        // Keep history bounded
+        if (chatHistory.length > 30) chatHistory = chatHistory.slice(-30);
+      }
+    });
+  } catch (err) {
+    updateTyping(typingEl, '⚠ Network error: ' + err.message);
+  } finally {
+    isChatting = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+function chatKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ── Chat DOM helpers ──────────────────────────────────────────────────────────
+function appendMsg(role, text) {
+  hidePlaceholder();
+  const wrap = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = renderMarkdown(text);
+  div.appendChild(bubble);
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  hidePlaceholder();
+  const wrap = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble msg-typing';
+  bubble.innerHTML = '';
+  div.appendChild(bubble);
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
+function updateTyping(div, text) {
+  const bubble = div.querySelector('.msg-bubble');
+  bubble.innerHTML = renderMarkdown(text);
+  const wrap = document.getElementById('chatMessages');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function finalizeTyping(div, text, updatedCollection) {
+  const bubble = div.querySelector('.msg-bubble');
+  bubble.classList.remove('msg-typing');
+  // Strip the JSON block from display text
+  const displayText = text.replace(/```json[\s\S]*?```/g, '').trim();
+  bubble.innerHTML = renderMarkdown(displayText || text);
+
+  if (updatedCollection) {
+    const chip = document.createElement('div');
+    chip.className = 'collection-update-chip';
+    chip.innerHTML = 'Apply update';
+    chip.addEventListener('click', () => applyCollectionUpdate(updatedCollection, chip));
+    bubble.appendChild(chip);
+  }
+
+  const wrap = document.getElementById('chatMessages');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function applyCollectionUpdate(collection, chip) {
+  collectionData = collection;
+  const name = collection.info?.name || 'API Collection';
+  const count = countEndpoints(collection.item || []);
+  renderResult(collection, name, count);
+  chip.innerHTML = 'Applied';
+  chip.style.cursor = 'default';
+  chip.replaceWith(chip.cloneNode(true));
+}
+
+// ── Markdown renderer (minimal, safe) ────────────────────────────────────────
+function renderMarkdown(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br/>');
+}
+
+// ── Result rendering ──────────────────────────────────────────────────────────
+function renderResult(collection, name, endpointCount) {
+  document.getElementById('resultName').textContent = name;
+  document.getElementById('epBadge').textContent = `${endpointCount} endpoint${endpointCount !== 1 ? 's' : ''}`;
+  const folders = (collection.item || []).filter(i => i.item).length;
+  document.getElementById('folBadge').textContent = `${folders} folder${folders !== 1 ? 's' : ''}`;
+
+  document.getElementById('treeView').innerHTML = buildTree(collection.item || []);
+
+  const vars = collection.variable || [];
+  const varsWrap = document.getElementById('varsWrap');
+  if (vars.length) {
+    document.getElementById('varsGrid').innerHTML = vars
+      .map(v => `<div class="var-chip">{{${esc(v.key)}}}</div>`).join('');
+    varsWrap.style.display = '';
+  } else {
+    document.getElementById('varsGrid').innerHTML = '';
+    varsWrap.style.display = 'none';
+  }
+}
+
+function buildTree(items) {
+  return items.map(item => {
+    if (item.item) {
+      return `<div><span class="tf">📁 ${esc(item.name)}</span><div style="padding-left:14px">${buildTree(item.item)}</div></div>`;
+    }
+    const m = (item.request?.method || 'GET').toUpperCase();
+    return `<div class="tr"><span class="meth ${m}">${m}</span><span style="color:var(--muted)">${esc(item.name)}</span></div>`;
+  }).join('');
+}
+
+function countEndpoints(items = []) {
+  let n = 0;
+  for (const i of items) { if (i.request) n++; if (i.item) n += countEndpoints(i.item); }
+  return n;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function downloadJSON() {
+  if (!collectionData) return;
+  const name = (collectionData.info?.name || 'collection').replace(/\s+/g,'_').toLowerCase();
+  const blob = new Blob([JSON.stringify(collectionData, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${name}.postman_collection.json` });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function copyJSON(btn) {
+  if (!collectionData) return;
+  const el = btn || document.getElementById('copyJsonBtn');
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(collectionData, null, 2));
+    if (el) {
+      el.textContent = 'Copied';
+      setTimeout(() => { el.textContent = 'Copy JSON'; }, 2000);
+    }
+  } catch {
+    if (el) {
+      el.textContent = 'Failed';
+      setTimeout(() => { el.textContent = 'Copy JSON'; }, 2000);
+    }
+  }
+}
+
+function reset() {
+  collectionData = null; chatHistory = [];
+  showResult(false); showProgress(false);
+  showBuildError('');
+  stopMetricsTimer();
+  resetMetrics();
+  document.getElementById('postmanBanner').classList.remove('on');
+  document.getElementById('sourceInput').value = '';
+  document.getElementById('notesInput').value = '';
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('chatMessages').appendChild(makePlaceholder());
+  document.getElementById('chatInput').disabled = true;
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('chatInput').placeholder = 'Message…';
+  document.getElementById('chatSub').textContent = '—';
+}
+
+function makePlaceholder() {
+  const d = document.createElement('div');
+  d.className = 'chat-placeholder'; d.id = 'chatPlaceholder';
+  d.innerHTML = '<div class="chat-placeholder-icon">🤖</div><div class="chat-placeholder-text">Build a collection first, then chat here.</div>';
+  return d;
+}
+
+// ── SSE consumer ──────────────────────────────────────────────────────────────
+async function consumeSSE(res, handler) {
+  const ct = res.headers.get('content-type') || '';
+
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const t = await res.text();
+      if (t) {
+        try {
+          const j = JSON.parse(t);
+          if (j.error) msg = j.error;
+          else msg = t.slice(0, 400);
+        } catch {
+          msg = t.slice(0, 400);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    handler({ type: 'error', message: msg });
+    return;
+  }
+
+  if (!ct.includes('text/event-stream')) {
+    const t = await res.text().catch(() => '');
+    handler({
+      type: 'error',
+      message: t?.slice(0, 500) || 'Unexpected response from server (not event stream)',
+    });
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        handler(JSON.parse(line.slice(6)));
+      } catch {
+        /* ignore malformed chunk */
+      }
+    }
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setBuilding(on) {
+  const btn = document.getElementById('buildBtn');
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+  document.getElementById('spinner').style.display = on ? 'block' : 'none';
+  document.getElementById('btnLabel').textContent = on ? '…' : 'Build';
+}
+function showProgress(on) { document.getElementById('progress').classList.toggle('on', on); }
+function showResult(on)   { document.getElementById('result').classList.toggle('on', on); }
+function setStatus(msg)   { document.getElementById('pstatus').textContent = msg; }
+function dotState(s)      { const d=document.getElementById('pdot'); d.className='pdot'; if(s) d.classList.add(s); }
+function clearLog()       { document.getElementById('logbox').innerHTML=''; }
+function addLog(msg, cls='') {
+  const box = document.getElementById('logbox');
+  const d = document.createElement('div');
+  if (cls) d.className = 'log-' + cls;
+  d.textContent = '> ' + msg;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+function flash(el) {
+  el.style.borderColor = 'var(--red)';
+  el.focus();
+  setTimeout(() => { el.style.borderColor = ''; }, 1500);
+}
+
+// ── Wire UI (no inline onclick — works with strict CSP) ───────────────────────
+function initBindings() {
+  const $ = (id) => document.getElementById(id);
+  $('buildBtn')?.addEventListener('click', () => build('fresh'));
+  $('stopBtn')?.addEventListener('click', () => stopBuild());
+  $('resumeBtn')?.addEventListener('click', () => resumeBuild());
+  $('retryBtn')?.addEventListener('click', () => retryBuild());
+  $('aiKeyPill')?.addEventListener('click', () => openModal());
+  $('postmanPill')?.addEventListener('click', () => openModal());
+  $('modalCloseBtn')?.addEventListener('click', () => closeModal());
+  $('modalCancelBtn')?.addEventListener('click', () => closeModal());
+  $('saveKeysBtn')?.addEventListener('click', () => saveKeys());
+  $('clearKeysBtn')?.addEventListener('click', () => clearKeys());
+  $('revealAiBtn')?.addEventListener('click', function () {
+    toggleReveal('aiKeyInput', this);
+  });
+  $('revealPostmanBtn')?.addEventListener('click', function () {
+    toggleReveal('postmanKeyInput', this);
+  });
+  $('downloadJsonBtn')?.addEventListener('click', () => downloadJSON());
+  $('copyJsonBtn')?.addEventListener('click', (e) => copyJSON(e.currentTarget));
+  $('resetBtn')?.addEventListener('click', () => reset());
+  $('sendBtn')?.addEventListener('click', () => sendChat());
+  const chat = $('chatInput');
+  if (chat) {
+    chat.addEventListener('keydown', chatKeyDown);
+    chat.addEventListener('input', (ev) => autoResize(ev.target));
+  }
+  const ov = $('overlay');
+  const panel = $('modalPanel');
+  panel?.addEventListener('click', (e) => e.stopPropagation());
+  ov?.addEventListener('click', () => closeModal());
+  $('sourceInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') build('fresh');
+  });
+}
+
+initBindings();
+updateBuildStateButtons();
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  await updatePills();
+  if (!localStorage.getItem(LS_AI_KEY)) openModal();
+})();
+</script>
+</body>
+</html>

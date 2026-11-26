@@ -1,0 +1,24 @@
+{
+  "name": "postman-agent",
+  "version": "1.0.0",
+  "description": "Local Postman collection builder (OpenAI-compatible + Anthropic auto-detect)",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^7.2.0",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.32.0",
+    "uuid": "^9.0.0"
+  }
+}
